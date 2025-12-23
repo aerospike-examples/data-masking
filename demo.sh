@@ -58,20 +58,24 @@ run_asadm() {
     local user=$1
     local pass=$2
     shift 2
+    local cmd="$*"
+    echo -e "${CYAN}  $ asadm -U $user -e \"$cmd\"${NC}"
     docker run --rm -i \
         --network "$NETWORK_NAME" \
         "$AEROSPIKE_IMAGE" \
-        asadm -h "$CONTAINER_NAME" -p 3000 -U "$user" -P "$pass" -e "$*"
+        asadm -h "$CONTAINER_NAME" -p 3000 -U "$user" -P "$pass" -e "$cmd"
 }
 
 run_aql() {
     local user=$1
     local pass=$2
     shift 2
+    local cmd="$*"
+    echo -e "${CYAN}  $ aql --user $user -c \"$cmd\"${NC}"
     docker run --rm -i \
         --network "$NETWORK_NAME" \
         "$TOOLS_IMAGE" \
-        aql --user "$user" --password "$pass" --host "$CONTAINER_NAME" --port 3000 -c "$*"
+        aql --user "$user" --password "$pass" --host "$CONTAINER_NAME" --port 3000 -c "$cmd"
 }
 
 # ============================================================================
@@ -100,14 +104,16 @@ wait_for_enter
 print_header "STEP 1: Starting Aerospike Enterprise Server"
 
 print_step "Building and starting Docker Compose environment..."
+echo -e "${CYAN}  $ docker compose build${NC}"
 docker compose build --quiet
+echo -e "${CYAN}  $ docker compose up -d${NC}"
 docker compose up -d
 
 print_info "Waiting for Aerospike to initialize (10 seconds)..."
 sleep 10
 
 print_step "Verifying server is running..."
-print_command "asinfo -v build"
+echo -e "${CYAN}  $ asinfo -U admin -v build${NC}"
 docker run --rm \
     --network "$NETWORK_NAME" \
     "$AEROSPIKE_IMAGE" \
@@ -220,8 +226,7 @@ print_header "STEP 4: Inserting Customer Records"
 echo -e "${YELLOW}Inserting sample customer data as app_service user...${NC}"
 echo ""
 
-print_step "Inserting customer record..."
-print_command "INSERT INTO test.customers (PK, name, ssn, email, notes) VALUES (...)"
+print_step "Inserting customer records..."
 
 run_aql app_service SecureApp123! "INSERT INTO test.customers (PK, name, ssn, email, notes) VALUES ('CUST-00001', 'John Smith', '123-45-6789', 'john.smith@acme.com', 'VIP customer - prefers phone contact')"
 print_info "Inserted: CUST-00001 - John Smith"
@@ -246,9 +251,6 @@ echo -e "${YELLOW}allowing them to see the ACTUAL unmasked data.${NC}"
 echo ""
 
 print_step "Reading customer records as app_service..."
-print_command "SELECT * FROM test.customers"
-echo ""
-
 run_aql app_service SecureApp123! "SELECT * FROM test.customers"
 
 echo ""
@@ -265,9 +267,6 @@ echo -e "${YELLOW}so they will see MASKED data for protected bins.${NC}"
 echo ""
 
 print_step "Reading customer records as analyst_1..."
-print_command "SELECT * FROM test.customers"
-echo ""
-
 run_aql analyst_1 Analyst456! "SELECT * FROM test.customers"
 
 echo ""
@@ -287,9 +286,6 @@ echo -e "${YELLOW}modify bins that have masking rules applied.${NC}"
 echo ""
 
 print_step "Attempting to update SSN as analyst_1 (should FAIL)..."
-print_command "INSERT INTO test.customers (PK, ssn) VALUES ('CUST-00001', '999-99-9999')"
-echo ""
-
 # This should fail with ROLE_VIOLATION
 run_aql analyst_1 Analyst456! "INSERT INTO test.customers (PK, ssn) VALUES ('CUST-00001', '999-99-9999')" 2>&1 || true
 
@@ -298,9 +294,6 @@ echo -e "${GREEN}✓ Write blocked! The analyst cannot modify masked bins.${NC}"
 echo ""
 
 print_step "Attempting same update as app_service (should SUCCEED)..."
-print_command "INSERT INTO test.customers (PK, ssn) VALUES ('CUST-00001', '111-22-3333')"
-echo ""
-
 run_aql app_service SecureApp123! "INSERT INTO test.customers (PK, ssn) VALUES ('CUST-00001', '111-22-3333')"
 
 echo ""
@@ -315,7 +308,6 @@ print_header "STEP 8: Verifying the Update"
 print_step "Reading updated record as app_service (unmasked)..."
 run_aql app_service SecureApp123! "SELECT * FROM test.customers WHERE PK='CUST-00001'"
 
-echo ""
 print_step "Reading same record as analyst_1 (masked)..."
 run_aql analyst_1 Analyst456! "SELECT * FROM test.customers WHERE PK='CUST-00001'"
 
@@ -334,6 +326,7 @@ echo -e "  • Failed write attempts to masked bins"
 echo ""
 
 print_step "Recent audit log entries:"
+echo -e "${CYAN}  $ docker exec $CONTAINER_NAME tail -20 /var/log/aerospike/audit.log${NC}"
 echo ""
 docker exec "$CONTAINER_NAME" tail -20 /var/log/aerospike/audit.log 2>/dev/null || echo "  (Audit log entries will appear here)"
 
