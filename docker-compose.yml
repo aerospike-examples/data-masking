@@ -1,0 +1,22 @@
+networks:
+  aerospike-qs:
+    driver: bridge
+
+services:
+  aerospike-masking:
+    build: .
+    container_name: aerospike-masking
+    networks:
+      - aerospike-qs
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+      - "3002:3002"
+    volumes:
+      - aerospike-data:/opt/aerospike/data
+      - aerospike-logs:/var/log/aerospike
+    restart: unless-stopped
+
+volumes:
+  aerospike-data:
+  aerospike-logs:
