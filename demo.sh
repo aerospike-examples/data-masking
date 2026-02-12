@@ -84,13 +84,19 @@ run_aql() {
 
 clear
 echo -e "${BOLD}"
-echo "    _                        _ _         "
-echo "   / \   ___ _ __ ___  ___ _(_) | _____  "
-echo "  / _ \ / _ \ '__/ _ \/ __| | | |/ / _ \ "
-echo " / ___ \  __/ | | (_) \__ \ | |   <  __/ "
-echo "/_/   \_\___|_|  \___/|___/_|_|_|\_\___| "
+
+cat <<'EOF'
+    ___     _____    _____     _____    _____    _____    _____    _   __   _____
+   /   |   | ____|  |  __ \   |  _  |  /  ___|  |  _  |  |_   _|  | | / /  |  ___|
+  / /| |   | |__    | |__) |  | | | |  \ `--.   | |_| |    | |    | |/ /   | |__
+ / /_| |   |  __|   |  _  /   | | | |   `--. \  |  __/     | |    |    \   |  __|
+/ ___  |   | |___   | | \ \   | |_| |  /\__/ /  | |       _| |_   | |\  \  | |___
+\/   |_/   \____/   |_|  \_\  \_____/  \____/   |_|       \___/   \_| \_/  \____/
+EOF
+
 echo ""
-echo "         DATA MASKING DEMO"
+
+echo "DATA MASKING DEMO"
 echo -e "${NC}"
 echo ""
 echo -e "${YELLOW}This demo showcases Aerospike's enterprise data masking feature${NC}"
@@ -105,7 +111,7 @@ print_header "STEP 1: Starting Aerospike Enterprise Server"
 
 print_step "Building and starting Docker Compose environment..."
 echo -e "${CYAN}  $ docker compose build${NC}"
-docker compose build --quiet
+docker compose build
 echo -e "${CYAN}  $ docker compose up -d${NC}"
 docker compose up -d
 
@@ -351,24 +357,100 @@ echo "  • No application code changes needed"
 echo "  • Granular control at namespace/set/bin level"
 echo "  • Enterprise security for compliance (PCI-DSS, GDPR, HIPAA)"
 echo ""
-echo -e "${CYAN}Useful commands for further exploration:${NC}"
+
+print_header "TRY IT YOURSELF - Sample Queries"
+
+echo -e "${BOLD}AQL Queries to try:${NC}"
 echo ""
-echo "  # Connect as admin to manage roles/users:"
+echo -e "${CYAN}  -- Select all customers${NC}"
+echo "  SELECT * FROM test.customers"
+echo ""
+echo -e "${CYAN}  -- Select specific customer by primary key${NC}"
+echo "  SELECT * FROM test.customers WHERE PK='CUST-00001'"
+echo ""
+echo -e "${CYAN}  -- Insert a new customer${NC}"
+echo "  INSERT INTO test.customers (PK, name, ssn, email, notes) VALUES ('CUST-00004', 'Alice Brown', '222-33-4444', 'alice@company.com', 'New customer')"
+echo ""
+echo -e "${CYAN}  -- Update a customer's non-masked field${NC}"
+echo "  INSERT INTO test.customers (PK, name) VALUES ('CUST-00001', 'John Smith Jr.')"
+echo ""
+echo -e "${CYAN}  -- Delete a customer${NC}"
+echo "  DELETE FROM test.customers WHERE PK='CUST-00004'"
+echo ""
+echo -e "${CYAN}  -- Show all records count${NC}"
+echo "  SELECT count(*) FROM test.customers"
+echo ""
+
+echo -e "${BOLD}Users available for testing:${NC}"
+echo ""
+echo "  ┌───────────────┬────────────────┬─────────────────────────────────┐"
+echo "  │ User          │ Password       │ Access Level                    │"
+echo "  ├───────────────┼────────────────┼─────────────────────────────────┤"
+echo "  │ app_service   │ SecureApp123!  │ Full access (unmasked data)     │"
+echo "  │ analyst_1     │ Analyst456!    │ Read-only (masked data)         │"
+echo "  │ masking_admin │ DBA789!        │ Masking rules administration    │"
+echo "  │ admin         │ admin          │ System administrator            │"
+echo "  └───────────────┴────────────────┴─────────────────────────────────┘"
+echo ""
+
+echo -e "${BOLD}Useful shell commands:${NC}"
+echo ""
+echo -e "${CYAN}  # Connect as admin to manage roles/users:${NC}"
 echo "  docker run --rm -it --network $NETWORK_NAME \\"
 echo "    $AEROSPIKE_IMAGE \\"
 echo "    asadm -h $CONTAINER_NAME -p 3000 -U admin -P admin"
 echo ""
-echo "  # Connect as analyst to see masked data:"
-echo "  docker run --rm -it --network $NETWORK_NAME \\"
-echo "    $TOOLS_IMAGE \\"
-echo "    aql --user analyst_1 --password Analyst456! --host $CONTAINER_NAME --port 3000"
-echo ""
-echo "  # View audit log:"
+echo -e "${CYAN}  # View audit log:${NC}"
 echo "  docker exec $CONTAINER_NAME tail -f /var/log/aerospike/audit.log"
 echo ""
-echo "  # Cleanup:"
+echo -e "${CYAN}  # Cleanup when done:${NC}"
 echo "  docker compose down -v"
 echo ""
-echo -e "${GREEN}Thank you for watching the demo!${NC}"
+
+wait_for_enter
+
+# ----------------------------------------------------------------------------
+# Interactive Shell
+# ----------------------------------------------------------------------------
+print_header "INTERACTIVE AQL SHELL"
+
+echo -e "${YELLOW}Choose a user to connect as:${NC}"
 echo ""
+echo "  1) app_service  - See UNMASKED data (full access)"
+echo "  2) analyst_1    - See MASKED data (read-only)"
+echo "  3) Exit"
+echo ""
+read -p "Enter choice [1-3]: " choice
+
+case $choice in
+    1)
+        echo ""
+        echo -e "${GREEN}Connecting as app_service (unmasked access)...${NC}"
+        echo -e "${CYAN}  $ aql --user app_service --host $CONTAINER_NAME${NC}"
+        echo ""
+        echo -e "${YELLOW}Type 'exit' or 'quit' to leave the AQL shell${NC}"
+        echo ""
+        docker run --rm -it \
+            --network "$NETWORK_NAME" \
+            "$TOOLS_IMAGE" \
+            aql --user app_service --password SecureApp123! --host "$CONTAINER_NAME" --port 3000
+        ;;
+    2)
+        echo ""
+        echo -e "${GREEN}Connecting as analyst_1 (masked access)...${NC}"
+        echo -e "${CYAN}  $ aql --user analyst_1 --host $CONTAINER_NAME${NC}"
+        echo ""
+        echo -e "${YELLOW}Type 'exit' or 'quit' to leave the AQL shell${NC}"
+        echo ""
+        docker run --rm -it \
+            --network "$NETWORK_NAME" \
+            "$TOOLS_IMAGE" \
+            aql --user analyst_1 --password Analyst456! --host "$CONTAINER_NAME" --port 3000
+        ;;
+    3|*)
+        echo ""
+        echo -e "${GREEN}Thank you for watching the demo!${NC}"
+        echo ""
+        ;;
+esac
 
